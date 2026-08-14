@@ -1,0 +1,250 @@
+/* Estilos personalizados para el Dashboard del Jardín Inteligente */
+
+/* Variables de color */
+:root {
+    --primary-green: #2e7d32;
+    --primary-green-light: #4caf50;
+    --danger-red: #c62828;
+    --danger-red-light: #ef5350;
+    --warning-orange: #ef6c00;
+    --info-blue: #1565c0;
+}
+
+/* Sensor Cards */
+.sensor-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sensor-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.sensor-icon {
+    font-size: 3rem !important;
+}
+
+/* Relay Cards */
+.relay-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.relay-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.relay-card.relay-on {
+    border-left: 4px solid var(--primary-green);
+}
+
+.relay-card.relay-off {
+    border-left: 4px solid var(--danger-red);
+}
+
+.relay-icon i {
+    transition: all 0.3s ease;
+}
+
+.relay-card.relay-on .relay-icon i {
+    color: var(--primary-green);
+}
+
+.relay-card.relay-off .relay-icon i {
+    color: var(--danger-red);
+}
+
+/* Chart Card */
+.chart-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.chart-container {
+    width: 100%;
+}
+
+/* Connection Status Badge */
+#connection-status.connected {
+    background-color: var(--primary-green) !important;
+}
+
+#connection-status.disconnected {
+    background-color: var(--danger-red) !important;
+}
+
+/* Table Styles */
+#events-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+#events-table td {
+    vertical-align: middle;
+}
+
+.badge-relay-on {
+    background-color: var(--primary-green) !important;
+}
+
+.badge-relay-off {
+    background-color: var(--danger-red) !important;
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.spinner-overlay {
+    position: relative;
+}
+
+.spinner-overlay::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid var(--primary-green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .sensor-card .card-body h2 {
+        font-size: 1.75rem;
+    }
+    
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .chart-container {
+        height: 300px !important;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2) { animation-delay: 0.1s; }
+.card:nth-child(3) { animation-delay: 0.15s; }
+.card:nth-child(4) { animation-delay: 0.2s; }
+
+/* Tooltip Customization */
+.tooltip-inner {
+    max-width: 200px;
+    font-size: 0.875rem;
+}
+
+/* ============================================================
+ * Autenticación y gestión de usuarios
+ * ============================================================ */
+
+/* Tarjetas de las páginas de login/registro */
+.auth-card {
+    border: none;
+    border-radius: 0.75rem;
+}
+
+/* Badges de estado de relé reutilizados para estados */
+.badge-relay-on {
+    background-color: var(--primary-green) !important;
+    color: #fff;
+}
+
+.badge-relay-off {
+    background-color: var(--danger-red) !important;
+    color: #fff;
+}
+
+/* Navbar */
+.navbar-brand {
+    font-weight: 600;
+}
+
+.nav-link.active {
+    font-weight: 600;
+}
+
+/* Secciones del panel */
+.panel-seccion {
+    animation: fadeIn 0.25s ease-out;
+}
+
+/* Tablas administrativas */
+#usuarios-body td,
+#logs-body td,
+#sesiones-body td {
+    vertical-align: middle;
+}
+
+/* Switch de modo automático */
+.form-check-lg .form-check-input {
+    width: 1.5em;
+    height: 0.75em;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .sensor-card .card-body h2 {
+        font-size: 1.75rem;
+    }
+
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .chart-container {
+        height: 300px !important;
+    }
+}
+
+/* Button States */
+.btn:disabled {
+    opacity: 0.65;
+}
+
+/* Scrollbar Styling */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

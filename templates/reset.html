@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Restablecer contraseña - SIGMA-IOT{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+            <div class="card auth-card shadow-sm mt-5">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-shield-lock fs-1 text-primary"></i>
+                        <h4 class="mt-2 mb-0">Nueva contraseña</h4>
+                        <small class="text-muted">Define una nueva contraseña segura</small>
+                    </div>
+
+                    <div id="alertMsg"></div>
+
+                    <form id="resetForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="password">Nueva contraseña</label>
+                            <input type="password" class="form-control" id="password" required placeholder="Mín. 8 caracteres, letra y número">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="confirmacion">Confirmar contraseña</label>
+                            <input type="password" class="form-control" id="confirmacion" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100" id="btnReset">
+                            <i class="bi bi-check-circle me-1"></i>Restablecer contraseña
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) {
+        SIGMA.mostrarError('El enlace no es válido o ya fue utilizado.');
+        document.getElementById('resetForm').style.display = 'none';
+    }
+
+    document.getElementById('resetForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnReset');
+        btn.disabled = true;
+        const password = document.getElementById('password').value;
+        const confirmacion = document.getElementById('confirmacion').value;
+
+        if (password !== confirmacion) {
+            SIGMA.mostrarError('La confirmación de contraseña no coincide.');
+            btn.disabled = false;
+            return;
+        }
+
+        const data = await SIGMA.api('/api/auth/recuperar/confirmar', {
+            method: 'POST',
+            body: JSON.stringify({ token: token, password: password })
+        });
+        btn.disabled = false;
+        if (data && data.success) {
+            SIGMA.mostrarExito(data.message + ' Serás redirigido al inicio de sesión.');
+            setTimeout(() => window.location.href = '/login', 1800);
+        } else {
+            SIGMA.mostrarError(data && data.error ? data.error : 'No fue posible restablecer la contraseña.');
+        }
+    });
+</script>
+{% endblock %}

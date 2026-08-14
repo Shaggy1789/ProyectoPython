@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Recuperar contraseña - SIGMA-IOT{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-12 col-sm-8 col-md-6 col-lg-4">
+            <div class="card auth-card shadow-sm mt-5">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-key fs-1 text-primary"></i>
+                        <h4 class="mt-2 mb-0">Recuperar contraseña</h4>
+                        <small class="text-muted">Te enviaremos un enlace de un solo uso</small>
+                    </div>
+
+                    <div id="alertMsg"></div>
+
+                    <form id="forgotForm">
+                        <div class="mb-3">
+                            <label class="form-label" for="email">Correo electrónico</label>
+                            <input type="email" class="form-control" id="email" required placeholder="usuario@correo.com">
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100" id="btnForgot">
+                            <i class="bi bi-send me-1"></i>Enviar enlace
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('auth_login_page') }}" class="small">
+                            <i class="bi bi-arrow-left me-1"></i>Volver al inicio de sesión
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('forgotForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnForgot');
+        btn.disabled = true;
+        const data = await SIGMA.api('/api/auth/recuperar', {
+            method: 'POST',
+            body: JSON.stringify({ email: document.getElementById('email').value.trim() })
+        });
+        btn.disabled = false;
+        if (data && data.success) {
+            SIGMA.mostrarExito(data.message);
+            document.getElementById('forgotForm').reset();
+        } else {
+            SIGMA.mostrarError(data && data.error ? data.error : 'No fue posible procesar la solicitud.');
+        }
+    });
+</script>
+{% endblock %}
