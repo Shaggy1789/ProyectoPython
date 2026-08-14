@@ -29,6 +29,7 @@ function detenerDashboard() {
     desconectarSSE();
     if (historicoTimer) { clearInterval(historicoTimer); historicoTimer = null; }
     if (oplaTimer) { clearInterval(oplaTimer); oplaTimer = null; }
+    if (ventiladorTimer) { clearInterval(ventiladorTimer); ventiladorTimer = null; }
 }
 
 function iniciarHistorico() {
@@ -129,7 +130,13 @@ function actualizarDashboard(data) {
     actualizarConexion(esp32.connected, esp32.last_error);
 
     if (data.dht11) actualizarSensores(data.dht11);
-    if (data.relays) {
+    // Si hay un dispositivo seleccionado en el Ventilador, los relés los
+    // actualiza SOLO refrescarVentilador (consulta directa). De lo contrario
+    // el SSE (estado global) y la consulta directa se pelean y el badge parpadea.
+    const selVent = document.getElementById('sel-ventilador-esp');
+    const haySeleccion = ventiladorSeleccion ||
+        (selVent && selVent.value && selVent.value !== '');
+    if (data.relays && !haySeleccion) {
         updateRelayDisplay(1, data.relays[1]);
         updateRelayDisplay(2, data.relays[2]);
     }
@@ -170,11 +177,16 @@ function updateRelayDisplay(relayId, state) {
     const off = document.getElementById('relay' + relayId + '-off');
 
     if (st) {
-        st.textContent = state ? 'ENCENDIDO' : 'APAGADO';
-        st.className = 'badge ' + (state ? 'badge-relay-on' : 'badge-relay-off');
+        if (state === null || state === undefined) {
+            st.textContent = 'DESCONOCIDO';
+            st.className = 'badge bg-secondary';
+        } else {
+            st.textContent = state ? 'ENCENDIDO' : 'APAGADO';
+            st.className = 'badge ' + (state ? 'badge-relay-on' : 'badge-relay-off');
+        }
     }
     if (on) on.disabled = Boolean(state);
-    if (off) off.disabled = !state;
+    if (off) off.disabled = state === null || state === undefined ? true : !state;
 }
 
 async function controlRelay(relayId, action) {
@@ -183,7 +195,9 @@ async function controlRelay(relayId, action) {
     if (on) on.disabled = true;
     if (off) off.disabled = true;
 
-    const data = await SIGMA.api('/api/relay/' + relayId + '/' + action);
+    const dispId = document.getElementById('sel-ventilador-esp').value;
+    const q = dispId ? ('?disp_id=' + dispId) : '';
+    const data = await SIGMA.api('/api/relay/' + relayId + '/' + action + q);
     if (data && data.success) {
         updateRelayDisplay(relayId, data.new_state);
         showToast('Relé ' + relayId + (action === 'on' ? ' encendido' : ' apagado'), 'success');
@@ -192,6 +206,94 @@ async function controlRelay(relayId, action) {
         showToast(data.error, 'danger');
     } else if (data) {
         showToast((data.message || 'Error al controlar el relé'), 'danger');
+    }
+}
+
+/* ---------- VENTILADOR: selección de dispositivo ---------- */
+
+let ventiladorTimer = null;
+let ventiladorSeleccion = null;
+
+function iniciarVentilador() {
+    cargarSelectorVentilador();
+    refrescarVentilador();
+    if (!ventiladorTimer) {
+        ventiladorTimer = setInterval(function () {
+            cargarSelectorVentilador();
+            refrescarVentilador();
+        }, 5000);
+    }
+}
+
+function detenerVentilador() {
+    if (ventiladorTimer) { clearInterval(ventiladorTimer); ventiladorTimer = null; }
+}
+
+async function cargarSelectorVentilador() {
+    const sel = document.getElementById('sel-ventilador-esp');
+    if (!sel) return;
+    const data = await SIGMA.api('/api/dispositivos');
+    if (!data || !data.success) return;
+    const prev = ventiladorSeleccion ? String(ventiladorSeleccion) : sel.value;
+    const lista = (data.grupos && data.grupos['laboratorio']) || [];
+    if (!lista.length) {
+        sel.innerHTML = '<option value="">No hay dispositivos de laboratorio</option>';
+        return;
+    }
+    sel.innerHTML = '<option value="">— Seleccionar dispositivo —</option>' + lista.map(function (d) {
+        const etiqueta = escapeHtml(d.nombre) + ' (' + (d.ip || 'sin IP') + ')';
+        return '<option value="' + d.id + '"' + (String(d.id) === prev ? ' selected' : '') + '>' +
+            etiqueta + '</option>';
+    }).join('');
+    if (prev && !Array.from(sel.options).some(function (o) { return o.value === prev; })) {
+        sel.value = '';
+    }
+    sel.onchange = function () {
+        ventiladorSeleccion = this.value ? parseInt(this.value, 10) : null;
+        refrescarVentilador();
+    };
+}
+
+async function refrescarVentilador() {
+    const sel = document.getElementById('sel-ventilador-esp');
+    const info = document.getElementById('ventilador-esp-info');
+    if (!sel || !info) return;
+    const dispId = ventiladorSeleccion || (sel.value ? parseInt(sel.value, 10) : null);
+    if (!dispId) {
+        info.textContent = 'Selecciona el ESP/controlador cuyo relé quieres manejar.';
+        updateRelayDisplay(1, null);
+        updateRelayDisplay(2, null);
+        return;
+    }
+    const [res, est] = await Promise.all([
+        SIGMA.api('/api/dispositivos/' + dispId + '/datos'),
+        SIGMA.api('/api/dispositivos/' + dispId + '/estado')
+    ]);
+    if (!res || !res.success) {
+        info.textContent = 'Sin conexión con el dispositivo.';
+        updateRelayDisplay(1, null);
+        updateRelayDisplay(2, null);
+        return;
+    }
+    const disp = res.dispositivo || {};
+    info.textContent = 'Controlando ' + (disp.nombre || ('#' + dispId)) +
+        ' (' + (disp.ip || 'sin IP') + ')';
+    const rele = (est && est.success && est.rele) ? est.rele : null;
+    if (rele) {
+        updateRelayDisplay(1, rele[1]);
+        updateRelayDisplay(2, rele[2]);
+    }
+    if (res.datos) {
+        const t = res.datos['T'];
+        const h = res.datos['H'];
+        const temp = document.getElementById('temp-value');
+        const hum = document.getElementById('humidity-value');
+        const tempTime = document.getElementById('temp-time');
+        const humTime = document.getElementById('humidity-time');
+        if (temp && t !== undefined) temp.textContent = t + '°C';
+        if (hum && h !== undefined) hum.textContent = h + '%';
+        if (tempTime) tempTime.textContent = 'Última actualización: ' + new Date().toLocaleTimeString('es-ES');
+        if (humTime) humTime.textContent = 'Última actualización: ' + new Date().toLocaleTimeString('es-ES');
     }
 }
 

@@ -30,7 +30,8 @@ window.onSeccionMostrada = function (seccion) {
         detenerDashboard();
         iniciarHistorico();
     } else if (seccion === 'ventilador') {
-        iniciarDashboard();
+        detenerDashboard();
+        iniciarVentilador();
         cargarModoAuto();
     } else if (seccion === 'alertas') {
         detenerDashboard();

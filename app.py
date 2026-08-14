@@ -488,10 +488,11 @@ def update_esp32_status(connected, error=None):
         esp32_status['last_error'] = None
 
 
-def send_relay_command(relay_id, action, origen='dashboard'):
+def send_relay_command(relay_id, action, origen='dashboard', cliente=None):
     """
     Envía comando ON/OFF al ESP32 para un relé específico.
     Registra el evento en BD, audita la acción y actualiza estado local.
+    Si se pasa `cliente` (ESP32Client), controla ese dispositivo específico.
     """
     global relay_states
 
@@ -503,8 +504,9 @@ def send_relay_command(relay_id, action, origen='dashboard'):
     command = f"{action.upper()} {relay_id}"
 
     try:
+        client_obj = cliente if cliente else esp32_client
         logger.info(f"Enviando comando al ESP32: {command}")
-        response = esp32_client.send_command(command)
+        response = client_obj.send_command(command)
         logger.info(f"Respuesta ESP32: {response}")
 
         if response == "OK":
@@ -786,22 +788,32 @@ def api_historical(usuario_actual, sesion_actual):
 @app.route('/api/relay/<int:relay_id>/<action>')
 @permiso_requerido('ventilador.controlar')
 def api_relay_control(usuario_actual, sesion_actual, relay_id, action):
-    """Endpoint para controlar relés (ventilador): solo con permiso, validado en backend."""
+    """Endpoint para controlar relés (ventilador): solo con permiso, validado en backend.
+    Acepta ?disp_id=<id> para controlar un dispositivo específico; sin él usa el ESP32 global."""
     try:
         if relay_id not in [1, 2]:
             return jsonify({'success': False, 'error': 'ID de relé inválido (1 o 2)'}), 400
         if action not in ['on', 'off']:
             return jsonify({'success': False, 'error': 'Acción inválida (on u off)'}), 400
 
+        cliente = None
+        disp_id = request.args.get('disp_id', type=int)
+        if disp_id:
+            disp = DispositivoOpla.query.get(disp_id)
+            if disp is None or not disp.ip:
+                return jsonify({'success': False, 'error': 'Dispositivo no encontrado o sin IP.'}), 404
+            cliente = ESP32Client(disp.ip, disp.puerto, ESP32_TIMEOUT)
+
         origen = f"manual:{usuario_actual.username}"
-        success, message = send_relay_command(relay_id, action, origen)
+        success, message = send_relay_command(relay_id, action, origen, cliente=cliente)
 
         return jsonify({
             'success': success,
             'message': message,
             'relay': relay_id,
             'action': action,
-            'new_state': action == 'on'
+            'new_state': action == 'on',
+            'disp_id': disp_id
         })
     except Exception as e:
         logger.error(f"Error en /api/relay: {e}")
