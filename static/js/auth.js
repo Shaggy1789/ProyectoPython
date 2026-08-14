@@ -192,8 +192,23 @@ const SIGMA = (function () {
         window.location.href = '/login';
     }
 
-    function alreadyLoggedRedirect() {
-        if (getToken()) window.location.href = '/';
+    async function alreadyLoggedRedirect() {
+        // Solo redirige a "/" si el token es realmente válido.
+        // Evita el bucle: "/" exige cookie sigma_auth, y un token viejo
+        // sin cookie haría rebotar login<->/ indefinidamente.
+        if (!getToken()) return;
+        try {
+            const res = await fetch('/api/auth/me', {
+                headers: { 'Authorization': 'Bearer ' + getToken() }
+            });
+            if (res.ok) {
+                window.location.href = '/';
+            } else {
+                limpiarSesion();
+            }
+        } catch (e) {
+            limpiarSesion();
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
