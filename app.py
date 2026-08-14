@@ -44,11 +44,15 @@ configure_database(app)
 
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-# CORS: orígenes permitidos desde variables de entorno
+# CORS: orígenes permitidos desde variables de entorno.
+# Se incluyen las IPs de red local (hotspot y LAN) para que cualquier
+# dispositivo conectado pueda consumir la API desde el navegador.
 cors_origins = [
     o.strip() for o in os.getenv(
         'CORS_ORIGINS',
-        'http://localhost:5000,http://127.0.0.1:5000'
+        'http://localhost:5000,http://127.0.0.1:5000,'
+        'http://192.168.137.1:5000,http://192.168.0.219:5000,'
+        'http://192.168.0.251:5000'
     ).split(',') if o.strip()
 ]
 CORS(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=False)

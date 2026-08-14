@@ -12,24 +12,8 @@ let historicoTimer = null;
 
 /* ---------- CONTROL DE SECCIONES / TIMERS ---------- */
 
-function iniciarDashboard() {
-    conectarSSE();
-    cargarEventosRecientes();
-    cargarDropdownsOplas();
-    actualizarOplaSeleccionado();
-    if (!oplaTimer) {
-        oplaTimer = setInterval(function () {
-            cargarDropdownsOplas();
-            actualizarOplaSeleccionado();
-        }, 15000);
-    }
-}
-
-function detenerDashboard() {
-    desconectarSSE();
+function detenerHistorico() {
     if (historicoTimer) { clearInterval(historicoTimer); historicoTimer = null; }
-    if (oplaTimer) { clearInterval(oplaTimer); oplaTimer = null; }
-    if (ventiladorTimer) { clearInterval(ventiladorTimer); ventiladorTimer = null; }
 }
 
 function iniciarHistorico() {
@@ -40,116 +24,6 @@ function iniciarHistorico() {
             loadHistoricalData(currentTimeRange);
         }, CHART_UPDATE_INTERVAL);
     }
-}
-
-/* ---------- STREAM SSE EN TIEMPO REAL ---------- */
-
-let sseAbortCtrl = null;
-let sseReconnectTimer = null;
-let sseIntentos = 0;
-
-function eventSourceActivo() {
-    return sseAbortCtrl !== null;
-}
-
-function conectarSSE() {
-    if (sseAbortCtrl) return; // ya conectado
-    const token = SIGMA.getToken();
-    if (!token) return;
-
-    const ctrl = new AbortController();
-    sseAbortCtrl = ctrl;
-
-    fetch('/api/stream', {
-        headers: { 'Authorization': 'Bearer ' + token },
-        signal: ctrl.signal
-    }).then(function (res) {
-        if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
-        sseIntentos = 0;
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        function leer() {
-            reader.read().then(function (resultado) {
-                if (resultado.done) { desconectarSSE(); return; }
-                buffer += decoder.decode(resultado.value, { stream: true });
-                let idx;
-                while ((idx = buffer.indexOf('\n\n')) !== -1) {
-                    const bloque = buffer.slice(0, idx);
-                    buffer = buffer.slice(idx + 2);
-                    procesarBloqueSSE(bloque);
-                }
-                leer();
-            }).catch(function () { desconectarSSE(); });
-        }
-        leer();
-    }).catch(function () { desconectarSSE(); });
-}
-
-function desconectarSSE() {
-    if (sseReconnectTimer) { clearTimeout(sseReconnectTimer); sseReconnectTimer = null; }
-    if (sseAbortCtrl) {
-        try { sseAbortCtrl.abort(); } catch (e) { /* ignorar */ }
-        sseAbortCtrl = null;
-    }
-    if (!document.hidden) {
-        sseIntentos += 1;
-        const espera = Math.min(1000 * sseIntentos, 10000);
-        sseReconnectTimer = setTimeout(conectarSSE, espera);
-    }
-}
-
-function procesarBloqueSSE(bloque) {
-    let evento = 'mensaje';
-    let datosTexto = '';
-    bloque.split('\n').forEach(function (linea) {
-        if (linea.startsWith('event:')) evento = linea.slice(6).trim();
-        else if (linea.startsWith('data:')) datosTexto += linea.slice(5).trim();
-    });
-    if (!datosTexto) return;
-    let datos;
-    try { datos = JSON.parse(datosTexto); } catch (e) { return; }
-    manejarEventoSSE(evento, datos);
-}
-
-function manejarEventoSSE(evento, datos) {
-    if (evento === 'status') {
-        actualizarDashboard(datos);
-    }
-}
-
-/* Carga puntual del estado (fallback / al entrar a la sección ventilar). */
-async function cargarStatus() {
-    const data = await SIGMA.api('/api/status');
-    if (data) actualizarDashboard(data);
-}
-
-function actualizarDashboard(data) {
-    if (data.dht11) actualizarSensores(data.dht11);
-    // Si hay un dispositivo seleccionado en el Ventilador, los relés los
-    // actualiza SOLO refrescarVentilador (consulta directa). De lo contrario
-    // el SSE (estado global) y la consulta directa se pelean y el badge parpadea.
-    const selVent = document.getElementById('sel-ventilador-esp');
-    const haySeleccion = ventiladorSeleccion ||
-        (selVent && selVent.value && selVent.value !== '');
-    if (data.relays && !haySeleccion) {
-        updateRelayDisplay(1, data.relays[1]);
-        updateRelayDisplay(2, data.relays[2]);
-    }
-}
-
-function actualizarSensores(reading) {
-    const temp = document.getElementById('temp-value');
-    const hum = document.getElementById('humidity-value');
-    const tempTime = document.getElementById('temp-time');
-    const humTime = document.getElementById('humidity-time');
-
-    if (temp) temp.textContent = reading.temperatura.toFixed(1) + '°C';
-    if (hum) hum.textContent = reading.humedad.toFixed(1) + '%';
-    const t = reading.timestamp ? new Date(reading.timestamp).toLocaleTimeString('es-ES') : '--';
-    if (tempTime) tempTime.textContent = 'Última actualización: ' + t;
-    if (humTime) humTime.textContent = 'Última actualización: ' + t;
 }
 
 function updateRelayDisplay(relayId, state) {
@@ -265,18 +139,6 @@ async function refrescarVentilador() {
         updateRelayDisplay(1, rele[1]);
         updateRelayDisplay(2, rele[2]);
     }
-    if (res.datos) {
-        const t = res.datos['T'];
-        const h = res.datos['H'];
-        const temp = document.getElementById('temp-value');
-        const hum = document.getElementById('humidity-value');
-        const tempTime = document.getElementById('temp-time');
-        const humTime = document.getElementById('humidity-time');
-        if (temp && t !== undefined) temp.textContent = t + '°C';
-        if (hum && h !== undefined) hum.textContent = h + '%';
-        if (tempTime) tempTime.textContent = 'Última actualización: ' + new Date().toLocaleTimeString('es-ES');
-        if (humTime) humTime.textContent = 'Última actualización: ' + new Date().toLocaleTimeString('es-ES');
-    }
 }
 
 /* ---------- HISTÓRICO ---------- */
@@ -373,43 +235,18 @@ async function cargarEventosRecientes() {
     });
 }
 
-/* ---------- OPLÀS EN EL DASHBOARD ---------- */
+/* ---------- VISTA DE DISPOSITIVO (Jardines / Laboratorios) ---------- */
 
-let oplaTimer = null;
-let oplaSeleccion = null; // { seccion, id }
-
-async function cargarDropdownsOplas() {
-    const data = await SIGMA.api('/api/dispositivos');
-    if (!data || !data.success) return;
-    ['jardin', 'laboratorio'].forEach(function (seccion) {
-        const sel = document.getElementById('sel-opla-' + seccion);
-        if (!sel) return;
-        const prev = sel.value;
-        const lista = (data.grupos && data.grupos[seccion]) || [];
-        sel.innerHTML = '<option value="">— Seleccionar —</option>' + lista.map(function (d) {
-            const etiqueta = escapeHtml(d.nombre) + (d.ip ? '' : ' (sin IP)');
-            return '<option value="' + d.id + '"' + (String(d.id) === prev ? ' selected' : '') + '>' +
-                etiqueta + '</option>';
-        }).join('');
-        sel.onchange = function () { mostrarOplaSeleccionado(seccion, this.value); };
-    });
-}
-
-function mostrarOplaSeleccionado(seccion, id) {
-    oplaSeleccion = id ? { seccion: seccion, id: id } : null;
-    actualizarOplaSeleccionado();
-}
-
-async function actualizarOplaSeleccionado() {
-    const body = document.getElementById('opla-seleccionado-body');
+async function renderVistaDispositivo(contenedorId, dispId) {
+    const body = document.getElementById(contenedorId);
     if (!body) return;
-    if (!oplaSeleccion) {
-        body.innerHTML = '<p class="text-muted mb-0">Selecciona un Oplà para ver sus datos en vivo.</p>';
+    if (!dispId) {
+        body.innerHTML = '<p class="text-muted mb-0">Selecciona un dispositivo para ver sus datos en vivo.</p>';
         return;
     }
     const [res, est] = await Promise.all([
-        SIGMA.api('/api/dispositivos/' + oplaSeleccion.id + '/datos'),
-        SIGMA.api('/api/dispositivos/' + oplaSeleccion.id + '/estado')
+        SIGMA.api('/api/dispositivos/' + dispId + '/datos'),
+        SIGMA.api('/api/dispositivos/' + dispId + '/estado')
     ]);
 
     if (!res || !res.success) {
@@ -529,13 +366,3 @@ function showToast(message, type) {
     new bootstrap.Toast(el, { delay: 3000 }).show();
     el.addEventListener('hidden.bs.toast', () => el.remove());
 }
-
-/* ---------- VISIBILIDAD DE PESTAÑA ---------- */
-
-document.addEventListener('visibilitychange', function () {
-    if (document.hidden) {
-        detenerDashboard();
-    } else {
-        iniciarDashboard();
-    }
-});

@@ -24,48 +24,40 @@ function setMsg(id, mensaje, tipo) {
 
 window.onSeccionMostrada = function (seccion) {
     detenerArea();
-    if (seccion === 'dashboard') {
-        iniciarDashboard();
-    } else if (seccion === 'historico') {
-        detenerDashboard();
+    detenerVentilador();
+    detenerHistorico();
+    if (seccion === 'historico') {
         iniciarHistorico();
     } else if (seccion === 'ventilador') {
-        detenerDashboard();
         iniciarVentilador();
         cargarModoAuto();
     } else if (seccion === 'alertas') {
-        detenerDashboard();
         cargarAlertas();
     } else if (seccion === 'jardines') {
-        detenerDashboard();
         cargarDispositivos('jardin');
         iniciarArea('jardin');
     } else if (seccion === 'laboratorios') {
-        detenerDashboard();
         cargarDispositivos('laboratorio');
         iniciarArea('laboratorio');
     } else if (seccion === 'configuracion') {
-        detenerDashboard();
         cargarModoAuto();
     } else if (seccion === 'usuarios') {
-        detenerDashboard();
         cargarRoles();
         cargarUsuarios();
     } else if (seccion === 'logs') {
-        detenerDashboard();
         cargarLogs();
     } else if (seccion === 'perfil') {
-        detenerDashboard();
         cargarPerfil();
         cargarSesiones();
     }
 };
 
 /* ============================================================
- * DATOS EN VIVO POR ÁREA (Jardines / Laboratorios)
+ * VISTA DE DISPOSITIVO POR ÁREA (Jardines / Laboratorios)
  * ============================================================ */
 
 let areaTimer = null;
+let areaSeleccion = { jardin: null, laboratorio: null };
 
 function detenerArea() {
     if (areaTimer) { clearInterval(areaTimer); areaTimer = null; }
@@ -73,75 +65,44 @@ function detenerArea() {
 
 function iniciarArea(seccion) {
     detenerArea();
-    cargarDatosArea(seccion);
-    areaTimer = setInterval(function () { cargarDatosArea(seccion); }, 15000);
+    cargarSelectorArea(seccion);
+    refrescarArea(seccion);
+    areaTimer = setInterval(function () {
+        cargarSelectorArea(seccion);
+        refrescarArea(seccion);
+    }, 15000);
 }
 
-async function cargarDatosArea(seccion) {
-    const cont = document.getElementById('datos-area-' + seccion);
-    if (!cont) return;
+async function cargarSelectorArea(seccion) {
+    const sel = document.getElementById('sel-opla-' + seccion);
+    if (!sel) return;
     const data = await SIGMA.api('/api/dispositivos');
     if (!data || !data.success) return;
+    const prev = areaSeleccion[seccion] ? String(areaSeleccion[seccion]) : sel.value;
     const lista = (data.grupos && data.grupos[seccion]) || [];
-    if (lista.length === 0) {
-        cont.innerHTML = '<div class="col-12"><div class="alert alert-info py-2 mb-0">' +
-            'No hay dispositivos registrados en esta área. Usa "Registrar dispositivo".</div></div>';
+    if (!lista.length) {
+        sel.innerHTML = '<option value="">No hay dispositivos registrados</option>';
         return;
     }
-    const tarjetas = await Promise.all(lista.map(tarjetaDatosArea));
-    cont.innerHTML = tarjetas.join('');
+    sel.innerHTML = '<option value="">— Seleccionar —</option>' + lista.map(function (d) {
+        const etiqueta = escapeHtml(d.nombre) + (d.ip ? '' : ' (sin IP)');
+        return '<option value="' + d.id + '"' + (String(d.id) === prev ? ' selected' : '') + '>' +
+            etiqueta + '</option>';
+    }).join('');
+    if (prev && !Array.from(sel.options).some(function (o) { return o.value === prev; })) {
+        sel.value = '';
+    }
+    sel.onchange = function () {
+        areaSeleccion[seccion] = this.value ? parseInt(this.value, 10) : null;
+        refrescarArea(seccion);
+    };
 }
 
-async function tarjetaDatosArea(d) {
-    const etiquetas = {
-        'T': 'Temperatura', 'H': 'Humedad', 'P': 'Presión',
-        'S': 'Humedad de suelo', 'L': 'Luz', 'U': 'UV', 'V': 'Voltaje',
-    };
-
-    let online = false;
-    let valores = null;
-    let rele = null;
-    try {
-        const res = await SIGMA.api('/api/dispositivos/' + d.id + '/datos');
-        if (res && res.success && res.online) {
-            online = true;
-            valores = res.datos || null;
-        }
-    } catch (e) { /* sin conexión */ }
-    try {
-        const est = await SIGMA.api('/api/dispositivos/' + d.id + '/estado');
-        if (est && est.success && est.rele) rele = est.rele;
-    } catch (e) { /* sin estado de relés */ }
-
-    const badge = d.online === null
-        ? '<span class="badge bg-secondary">Sin IP</span>'
-        : (online
-            ? '<span class="badge badge-relay-on">En línea</span>'
-            : '<span class="badge badge-relay-off">Sin conexión</span>');
-
-    let filas = '<tr><td colspan="2" class="text-center text-muted">Sin datos disponibles</td></tr>';
-    if (valores && Object.keys(valores).length > 0) {
-        filas = Object.keys(valores).map(function (k) {
-            const nombre = etiquetas[k] || k;
-            return '<tr><td>' + escapeHtml(nombre) + '</td><td class="text-end"><strong>' +
-                escapeHtml(valores[k]) + '</strong></td></tr>';
-        }).join('');
-    }
-    if (rele && (1 in rele)) {
-        const cls = rele[1] ? 'badge-relay-on' : 'badge-relay-off';
-        const txt = rele[1] ? 'ENCENDIDO' : 'APAGADO';
-        filas += '<tr><td>Ventilador (Relé 1)</td><td class="text-end">' +
-            '<span class="badge ' + cls + '">' + txt + '</span></td></tr>';
-    }
-
-    return '<div class="col-12 col-md-6 col-xl-4">' +
-        '<div class="card h-100">' +
-        '<div class="card-header d-flex justify-content-between align-items-center py-2">' +
-        '<strong>' + escapeHtml(d.nombre) + '</strong>' + badge +
-        '</div>' +
-        '<div class="card-body p-0"><table class="table table-sm mb-0"><tbody>' + filas + '</tbody></table></div>' +
-        (d.zona ? '<div class="card-footer py-1 text-muted small">Zona: ' + escapeHtml(d.zona) + '</div>' : '') +
-        '</div></div>';
+function refrescarArea(seccion) {
+    const sel = document.getElementById('sel-opla-' + seccion);
+    const dispId = areaSeleccion[seccion] ||
+        (sel && sel.value ? parseInt(sel.value, 10) : null);
+    renderVistaDispositivo('vista-opla-' + seccion, dispId);
 }
 
 /* ============================================================
@@ -786,7 +747,7 @@ function aplicarIpDetectada(seccion, ip) {
                 cargarDispositivos('laboratorio');
                 if (seccion === 'laboratorio') {
                     setTimeout(function () {
-                        if (typeof cargarDatosArea === 'function') cargarDatosArea('laboratorio');
+                        if (typeof refrescarArea === 'function') refrescarArea('laboratorio');
                     }, 1000);
                 }
             } else if (res && res.error) {

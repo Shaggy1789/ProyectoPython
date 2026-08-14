@@ -125,15 +125,13 @@ const SIGMA = (function () {
         if (loginLink) loginLink.style.display = 'none';
         if (userMenu) userMenu.style.display = '';
 
-        const secciones = [
-            ['dashboard', 'Dashboard', 'bi-speedometer2'],
-        ];
+        const secciones = [];
         if (esAdmin() || tieneRol('OPERADOR')) {
+            secciones.push(['laboratorios', 'Laboratorios', 'bi-buildings']);
             secciones.push(['ventilador', 'Ventilador', 'bi-fan']);
+            secciones.push(['jardines', 'Jardines', 'bi-flower1']);
             secciones.push(['historico', 'Histórico', 'bi-graph-up']);
             secciones.push(['alertas', 'Alertas', 'bi-exclamation-triangle']);
-            secciones.push(['jardines', 'Jardines', 'bi-flower1']);
-            secciones.push(['laboratorios', 'Laboratorios', 'bi-buildings']);
             secciones.push(['configuracion', 'Configuración', 'bi-sliders']);
         }
         if (esAdmin()) {

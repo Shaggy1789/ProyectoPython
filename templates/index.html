@@ -3,59 +3,6 @@
 {% block content %}
 <div class="container-fluid px-3">
 
-    <!-- ===================== DASHBOARD ===================== -->
-    <section id="seccion-dashboard" class="panel-seccion">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="mb-0"><i class="bi bi-speedometer2 me-2 text-primary"></i>Dashboard</h4>
-        </div>
-
-        <div class="row mb-4" id="status-cards">
-            <div class="col-12 col-md-6 col-lg-4 mb-3">
-                <div class="card sensor-card h-100">
-                    <div class="card-body text-center">
-                        <div class="sensor-icon text-danger mb-2"><i class="bi bi-thermometer-half fs-1"></i></div>
-                        <h6 class="text-muted mb-1">Temperatura</h6>
-                        <h2 class="mb-0" id="temp-value">--°C</h2>
-                        <small class="text-muted" id="temp-time">Última actualización: --</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-6 col-lg-4 mb-3">
-                <div class="card sensor-card h-100">
-                    <div class="card-body text-center">
-                        <div class="sensor-icon text-primary mb-2"><i class="bi bi-droplet-half fs-1"></i></div>
-                        <h6 class="text-muted mb-1">Humedad</h6>
-                        <h2 class="mb-0" id="humidity-value">--%</h2>
-                        <small class="text-muted" id="humidity-time">Última actualización: --</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h6 class="mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Oplàs conectados</h6>
-                <div class="d-flex flex-wrap gap-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-primary">LABORATORIOS</span>
-                        <select id="sel-opla-laboratorio" class="form-select form-select-sm" style="width:auto;">
-                            <option value="">— Seleccionar —</option>
-                        </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-success">JARDINES</span>
-                        <select id="sel-opla-jardin" class="form-select form-select-sm" style="width:auto;">
-                            <option value="">— Seleccionar —</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body" id="opla-seleccionado-body">
-                <p class="text-muted mb-0">Selecciona un Oplà para ver sus datos en vivo.</p>
-            </div>
-        </div>
-    </section>
-
     <!-- ===================== VENTILADOR ===================== -->
     <section id="seccion-ventilador" class="panel-seccion d-none">
         <h4 class="mb-3"><i class="bi bi-fan me-2 text-primary"></i>Control del Ventilador</h4>
@@ -294,7 +241,17 @@
                 </button>
             </div>
         </div>
-        <div id="datos-area-jardin" class="row g-3 mb-4"></div>
+        <div class="card mb-4">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Ver dispositivo</h6>
+                <select id="sel-opla-jardin" class="form-select form-select-sm" style="width:auto;">
+                    <option value="">— Seleccionar —</option>
+                </select>
+            </div>
+            <div class="card-body" id="vista-opla-jardin">
+                <p class="text-muted mb-0">Selecciona un dispositivo de jardín para ver sus datos en vivo.</p>
+            </div>
+        </div>
         <div class="card"><div class="card-body">
             <div class="table-responsive">
                 <table class="table table-sm table-hover">
@@ -324,7 +281,17 @@
                 </button>
             </div>
         </div>
-        <div id="datos-area-laboratorio" class="row g-3 mb-4"></div>
+        <div class="card mb-4">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h6 class="mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Ver dispositivo</h6>
+                <select id="sel-opla-laboratorio" class="form-select form-select-sm" style="width:auto;">
+                    <option value="">— Seleccionar —</option>
+                </select>
+            </div>
+            <div class="card-body" id="vista-opla-laboratorio">
+                <p class="text-muted mb-0">Selecciona un dispositivo de laboratorio para ver sus datos en vivo.</p>
+            </div>
+        </div>
         <div class="card"><div class="card-body">
             <div class="table-responsive">
                 <table class="table table-sm table-hover">
@@ -575,7 +542,8 @@
     document.addEventListener('DOMContentLoaded', function () {
         if (!SIGMA.guardSesion()) return;
         SIGMA.construirNavbar();
-        const inicio = sessionStorage.getItem('sigma_seccion') || 'dashboard';
+        let inicio = sessionStorage.getItem('sigma_seccion') || 'laboratorios';
+        if (!document.getElementById('seccion-' + inicio)) inicio = 'laboratorios';
         sessionStorage.removeItem('sigma_seccion');
         SIGMA.mostrarSeccion(inicio);
     });
