@@ -126,9 +126,6 @@ async function cargarStatus() {
 }
 
 function actualizarDashboard(data) {
-    const esp32 = data.esp32 || {};
-    actualizarConexion(esp32.connected, esp32.last_error);
-
     if (data.dht11) actualizarSensores(data.dht11);
     // Si hay un dispositivo seleccionado en el Ventilador, los relés los
     // actualiza SOLO refrescarVentilador (consulta directa). De lo contrario
@@ -140,21 +137,6 @@ function actualizarDashboard(data) {
         updateRelayDisplay(1, data.relays[1]);
         updateRelayDisplay(2, data.relays[2]);
     }
-}
-
-function actualizarConexion(connected, error) {
-    const badge = document.getElementById('connection-status');
-    if (!badge) return;
-    if (connected) {
-        badge.className = 'badge bg-success';
-        badge.innerHTML = '<i class="bi bi-wifi me-1"></i>Conectado';
-    } else {
-        badge.className = 'badge bg-danger';
-        badge.innerHTML = '<i class="bi bi-wifi-off me-1"></i>Desconectado';
-        if (error) badge.title = 'Error: ' + error;
-    }
-    const lu = document.getElementById('last-update');
-    if (lu) lu.textContent = new Date().toLocaleTimeString('es-ES');
 }
 
 function actualizarSensores(reading) {
