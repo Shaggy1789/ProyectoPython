@@ -268,10 +268,15 @@
     <section id="seccion-jardines" class="panel-seccion d-none">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0"><i class="bi bi-flower1 me-2 text-success"></i>Jardines</h4>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalDispositivo"
-                    onclick="nuevoDispositivo('jardin')">
-                <i class="bi bi-plus-circle me-1"></i>Registrar dispositivo
-            </button>
+            <div>
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="detectarDispositivos('jardin')">
+                    <i class="bi bi-radar me-1"></i>Detectar
+                </button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalDispositivo"
+                        onclick="nuevoDispositivo('jardin')">
+                    <i class="bi bi-plus-circle me-1"></i>Registrar dispositivo
+                </button>
+            </div>
         </div>
         <div id="datos-area-jardin" class="row g-3 mb-4"></div>
         <div class="card"><div class="card-body">
@@ -293,10 +298,15 @@
     <section id="seccion-laboratorios" class="panel-seccion d-none">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 class="mb-0"><i class="bi bi-buildings me-2 text-primary"></i>Laboratorios</h4>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalDispositivo"
-                    onclick="nuevoDispositivo('laboratorio')">
-                <i class="bi bi-plus-circle me-1"></i>Registrar dispositivo
-            </button>
+            <div>
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="detectarDispositivos('laboratorio')">
+                    <i class="bi bi-radar me-1"></i>Detectar
+                </button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalDispositivo"
+                        onclick="nuevoDispositivo('laboratorio')">
+                    <i class="bi bi-plus-circle me-1"></i>Registrar dispositivo
+                </button>
+            </div>
         </div>
         <div id="datos-area-laboratorio" class="row g-3 mb-4"></div>
         <div class="card"><div class="card-body">

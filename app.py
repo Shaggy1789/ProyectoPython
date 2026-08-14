@@ -93,6 +93,99 @@ def actualizar_env_esp32_ip(nueva_ip):
 
 
 # ============================================
+# DESCUBRIMIENTO DE DISPOSITIVOS (UDP BROADCAST)
+# ============================================
+
+ESP32_DISCOVERY_PORT = 5001
+OPLA_DISCOVERY_PORT = 5002
+DISCOVERY_TIMEOUT = 2.0
+
+
+def descubrir_esp32(timeout=None):
+    """Envía FIND_ESP32 por UDP broadcast y devuelve la IP del ESP32 o None."""
+    return _descubrir_por_broadcast('FIND_ESP32', ESP32_DISCOVERY_PORT,
+                                    'IP:', unica=True, timeout=timeout)
+
+
+def descubrir_oplas(timeout=None):
+    """Envía FIND_OPLA por UDP broadcast y devuelve lista de IPs de Oplà."""
+    return _descubrir_por_broadcast('FIND_OPLA', OPLA_DISCOVERY_PORT,
+                                    'IP:', unica=False, timeout=timeout)
+
+
+def _descubrir_por_broadcast(cmd, puerto, prefijo, unica, timeout=None):
+    """Envía un comando por UDP broadcast y recolecta respuestas 'prefijo:valor'.
+    Si unica=True devuelve el primer valor válido; si no, devuelve una lista.
+    Envía al broadcast global y, si detecta la subred del hotspot (192.168.137.x),
+    también al broadcast de esa subred para asegurar que salga por la interfaz correcta."""
+    t = timeout or DISCOVERY_TIMEOUT
+    sock = None
+    destinos = [('255.255.255.255', puerto)]
+    for ip_local in _ips_locales():
+        if ip_local.startswith('192.168.137.'):
+            destinos.append(('192.168.137.255', puerto))
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.settimeout(0.3)
+        mensaje = f"{cmd}\n".encode('utf-8')
+        for destino in destinos:
+            try:
+                sock.sendto(mensaje, destino)
+            except OSError:
+                continue
+        encontrados = []
+        inicio = time.time()
+        while time.time() - inicio < t:
+            try:
+                data, addr = sock.recvfrom(64)
+            except socket.timeout:
+                continue
+            texto = data.decode('utf-8', 'ignore').strip()
+            if texto.startswith(prefijo):
+                valor = texto[len(prefijo):].strip()
+                if _ip_valida(valor) and addr[0] == valor:
+                    if unica:
+                        return valor
+                    if valor not in encontrados:
+                        encontrados.append(valor)
+        return None if unica else encontrados
+    except Exception as e:
+        logger.error(f"Error en descubrimiento UDP ({cmd}): {e}")
+        return None if unica else []
+    finally:
+        if sock:
+            sock.close()
+
+
+def _ips_locales():
+    """Devuelve las direcciones IPv4 locales de esta máquina."""
+    ips = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ips.add(info[4][0])
+    except OSError:
+        pass
+    try:
+        import subprocess
+        out = subprocess.run(['ipconfig'], capture_output=True, text=True).stdout
+        import re
+        for m in re.finditer(r'IPv4[^:]*:\s*(\d+\.\d+\.\d+\.\d+)', out):
+            ips.add(m.group(1))
+    except Exception:
+        pass
+    return list(ips)
+
+
+def _ip_valida(ip):
+    try:
+        ipaddress.ip_address(ip)
+        return True
+    except ValueError:
+        return False
+
+
+# ============================================
 # CLIENTE TCP PARA COMUNICACIÓN CON ESP32
 # ============================================
 
@@ -224,6 +317,22 @@ def api_listar_dispositivos(usuario_actual, sesion_actual):
         item['online'] = _check_online(d.ip, d.puerto)
         grupos.get(d.seccion, grupos['jardin']).append(item)
     return jsonify({'success': True, 'grupos': grupos})
+
+
+@app.route('/api/dispositivos/discover', methods=['POST'])
+@autenticado
+def api_descubrir_dispositivos(usuario_actual, sesion_actual):
+    """Descubre ESP32 y Oplà en la red por UDP broadcast.
+    Devuelve las IPs encontradas sin modificar la BD."""
+    esp32_ip = descubrir_esp32()
+    oplas = descubrir_oplas()
+    logger.info(f"Descubrimiento: ESP32={esp32_ip}, Oplàs={oplas}")
+    return jsonify({
+        'success': True,
+        'esp32': esp32_ip,
+        'oplas': oplas,
+        'timestamp': datetime.utcnow().isoformat()
+    })
 
 
 @app.route('/api/dispositivos', methods=['POST'])
@@ -893,6 +1002,19 @@ def init_database():
         logger.info("Base de datos inicializada - tablas y datos base creados")
 
 
+def sincronizar_reles_rapido():
+    """Tarea programada: consulta ESTADO cada 5s para que el dashboard
+    detecte al instante los cambios de relé hechos desde el Oplà."""
+    global esp32_client
+    try:
+        if not esp32_client.test_connection():
+            return
+        estado = esp32_client.send_command("ESTADO")
+        sincronizar_reles(estado)
+    except Exception as e:
+        logger.debug(f"Sync rápido relés: {e}")
+
+
 def init_scheduler():
     """Inicializa el programador de tareas en segundo plano"""
     scheduler = BackgroundScheduler(daemon=True)
@@ -903,6 +1025,15 @@ def init_scheduler():
         seconds=15,
         id='poll_esp32',
         name='Consultar datos ESP32 cada 15s',
+        replace_existing=True
+    )
+
+    scheduler.add_job(
+        func=sincronizar_reles_rapido,
+        trigger='interval',
+        seconds=5,
+        id='sync_reles',
+        name='Sincronizar relés cada 5s',
         replace_existing=True
     )
 

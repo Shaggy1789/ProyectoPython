@@ -691,6 +691,110 @@ function guardarDispositivo() {
     });
 }
 
+function detectarDispositivos(seccion) {
+    const boton = event && event.currentTarget ? event.currentTarget : null;
+    const textoOriginal = boton ? boton.innerHTML : '';
+    if (boton) boton.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Buscando...';
+
+    SIGMA.api('/api/dispositivos/discover', { method: 'POST' }).then(function (data) {
+        if (boton) boton.innerHTML = textoOriginal;
+        if (!data || !data.success) {
+            showToast((data && data.error) || 'No se pudo escanear la red.', 'danger');
+            return;
+        }
+        return SIGMA.api('/api/dispositivos').then(function (reg) {
+            const todos = [].concat(reg.grupos.jardin || [], reg.grupos.laboratorio || []);
+            const esp32 = data.esp32;
+            const oplas = data.oplas || [];
+
+            if (seccion === 'laboratorio') {
+                if (!esp32) {
+                    showToast('No se detectó el ESP32 en la red.', 'warning');
+                    return;
+                }
+                gestionarDetectado('laboratorio', esp32, todos);
+            } else {
+                if (oplas.length === 0) {
+                    showToast('No se detectaron Oplàs de jardín en la red.', 'warning');
+                    return;
+                }
+                if (oplas.length === 1) {
+                    gestionarDetectado('jardin', oplas[0], todos);
+                } else {
+                    const opciones = oplas.map(function (ip) {
+                        const reg = todos.find(function (x) { return x.ip === ip; });
+                        return ip + (reg ? '  [REGISTRADO: ' + reg.nombre + ']' : '  [NUEVO]');
+                    }).join('\n');
+                    const elegida = prompt('Se detectaron varios Oplàs:\n' + opciones +
+                        '\n\nEscribe la IP que quieres gestionar:', oplas[0]);
+                    if (elegida && oplas.indexOf(elegida) !== -1) {
+                        gestionarDetectado('jardin', elegida, todos);
+                    }
+                }
+            }
+        });
+    }).catch(function () {
+        if (boton) boton.innerHTML = textoOriginal;
+        showToast('Error de conexión al escanear.', 'danger');
+    });
+}
+
+function gestionarDetectado(seccion, ip, todos) {
+    const registrado = todos.find(function (x) { return x.ip === ip; });
+
+    if (registrado) {
+        if (registrado.seccion !== seccion) {
+            showToast(registrado.nombre + ' (' + ip + ') ya está registrado en ' +
+                (registrado.seccion === 'jardin' ? 'Jardines' : 'Laboratorios') + '.', 'warning');
+            return;
+        }
+        if (confirm('Oplà "' + registrado.nombre + '" ya está registrado en ' + ip + '.\n\n¿Actualizar sus datos?')) {
+            abrirEditarDispositivo(registrado.id);
+        }
+        return;
+    }
+
+    if (confirm('Se detectó un dispositivo NUEVO en ' + ip + '\n(no está registrado en ' +
+        (seccion === 'jardin' ? 'Jardines' : 'Laboratorios') + ').\n\n¿Registrarlo?')) {
+        const nombreSugerido = seccion === 'jardin' ? 'Opla Jardin ' + ip.split('.').pop() : 'Lab-IOT ' + ip.split('.').pop();
+        nuevoDispositivo(seccion);
+        document.getElementById('d-ip').value = ip;
+        document.getElementById('d-nombre').value = nombreSugerido;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDispositivo'));
+        modal.show();
+        showToast('Dispositivo nuevo detectado: ' + ip + '. Completa el nombre y guarda.', 'success');
+    }
+}
+
+function aplicarIpDetectada(seccion, ip) {
+    SIGMA.api('/api/dispositivos').then(function (data) {
+        if (!data || !data.success) return;
+        const lista = (data.grupos && data.grupos[seccion]) || [];
+        const d = lista[0];
+        if (!d) {
+            showToast('No hay dispositivos registrados en ' + seccion + '. Crea uno primero.', 'warning');
+            return;
+        }
+        SIGMA.api('/api/dispositivos/' + d.id, {
+            method: 'PUT',
+            body: JSON.stringify({ ip: ip })
+        }).then(function (res) {
+            if (res && res.success) {
+                showToast(d.nombre + ' actualizado a ' + ip, 'success');
+                cargarDispositivos('jardin');
+                cargarDispositivos('laboratorio');
+                if (seccion === 'laboratorio') {
+                    setTimeout(function () {
+                        if (typeof cargarDatosArea === 'function') cargarDatosArea('laboratorio');
+                    }, 1000);
+                }
+            } else if (res && res.error) {
+                showToast(res.error, 'danger');
+            }
+        });
+    });
+}
+
 function eliminarDispositivo(id) {
     if (!confirm('¿Eliminar este dispositivo del registro?')) return;
     SIGMA.api('/api/dispositivos/' + id, { method: 'DELETE' }).then(function (data) {
